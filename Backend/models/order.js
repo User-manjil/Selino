@@ -1,0 +1,49 @@
+const mongoose = require("mongoose");
+
+const OrderSchema = new mongoose.Schema({
+    buyer: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user",
+        required: true
+    },
+    items: [
+        {
+            comic: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "comic",
+                required: true
+            },
+            quantity: {
+                type: Number,
+                required: true,
+                min: 1
+            },
+            price: {
+                type: Number,
+                required: true
+            }
+        }
+    ],
+    totalAmount: {
+        type: Number,
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ["Pending", "Paid", "Shipped", "Delivered", "Cancelled"],
+        default: "Paid"
+    },
+    shippingAddress: {
+        street: { type: String, required: true },
+        city: { type: String, required: true },
+        state: { type: String, required: true },
+        zip: { type: String, required: true },
+        country: { type: String, required: true }
+    },
+    paymentMethod: {
+        type: String,
+        default: "Credit Card"
+    }
+}, { timestamps: true });
+
+module.exports = mongoose.model("order", OrderSchema);
