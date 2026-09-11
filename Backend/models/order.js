@@ -42,7 +42,8 @@ const OrderSchema = new mongoose.Schema({
     },
     paymentMethod: {
         type: String,
-        default: "Credit Card"
+        enum: ["COD", "Khalti", "eSewa"],
+        required: true
     }
 }, { timestamps: true });
 

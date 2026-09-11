@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const crypto = require("crypto");
 const Order = require("../models/order");
 const Comic = require("../models/comic");
 const { authMiddleware, isBuyer, isSeller } = require("../middleware/auth");
@@ -7,13 +8,23 @@ const { authMiddleware, isBuyer, isSeller } = require("../middleware/auth");
 // POST /api/orders - Checkout/Create Order (Buyers only)
 router.post("/", authMiddleware, isBuyer, async (req, res) => {
     try {
-        const { items, shippingAddress } = req.body;
+        const { items, shippingAddress, paymentMethod } = req.body;
+        const supportedPaymentMethods = ["COD", "Khalti", "eSewa"];
 
         if (!items || items.length === 0) {
             return res.status(400).json({ message: "No items in the order" });
         }
+        if (!supportedPaymentMethods.includes(paymentMethod)) {
+            return res.status(400).json({ message: "Please select COD, Khalti, or eSewa" });
+        }
         if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.state || !shippingAddress.zip || !shippingAddress.country) {
             return res.status(400).json({ message: "Please provide a complete shipping address" });
+        }
+        if (paymentMethod === "Khalti" && !process.env.KHALTI_SECRET_KEY) {
+            return res.status(503).json({ message: "Khalti is not configured. Add KHALTI_SECRET_KEY to the backend environment." });
+        }
+        if (paymentMethod === "eSewa" && !process.env.ESEWA_SECRET_KEY) {
+            return res.status(503).json({ message: "eSewa is not configured. Add ESEWA_SECRET_KEY to the backend environment." });
         }
 
         let calculatedTotal = 0;
@@ -44,8 +55,8 @@ router.post("/", authMiddleware, isBuyer, async (req, res) => {
             items: orderItems,
             totalAmount: calculatedTotal,
             shippingAddress,
-            status: "Paid", // Default to paid immediately for mock checkout
-            paymentMethod: "Credit Card"
+            status: "Pending",
+            paymentMethod
         });
 
         // Deduct stock for each comic
@@ -59,7 +70,67 @@ router.post("/", authMiddleware, isBuyer, async (req, res) => {
         const populatedOrder = await Order.findById(newOrder._id)
             .populate("items.comic", "title author imageUrl");
 
-        res.status(201).json(populatedOrder);
+        if (paymentMethod === "COD") {
+            return res.status(201).json({ order: populatedOrder, payment: { gateway: "COD" } });
+        }
+
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+        const callbackUrl = `${frontendUrl}/dashboard?payment=${paymentMethod.toLowerCase()}&order=${newOrder._id}`;
+
+        if (paymentMethod === "Khalti") {
+            const khaltiResponse = await fetch("https://a.khalti.com/api/v2/epayment/initiate/", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Key ${process.env.KHALTI_SECRET_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    return_url: callbackUrl,
+                    website_url: frontendUrl,
+                    amount: Math.round(calculatedTotal * 100),
+                    purchase_order_id: newOrder._id.toString(),
+                    purchase_order_name: `Selino order ${newOrder._id}`
+                })
+            });
+            const khaltiData = await khaltiResponse.json();
+            if (!khaltiResponse.ok || !khaltiData.payment_url) {
+                return res.status(502).json({ message: khaltiData.detail || "Unable to start Khalti payment" });
+            }
+
+            return res.status(201).json({
+                order: populatedOrder,
+                payment: { gateway: "Khalti", redirectUrl: khaltiData.payment_url }
+            });
+        }
+
+        const transactionUuid = `${newOrder._id}-${Date.now()}`;
+        const productCode = process.env.ESEWA_PRODUCT_CODE || "EPAYTEST";
+        const totalAmount = calculatedTotal.toFixed(2);
+        const signature = crypto
+            .createHmac("sha256", process.env.ESEWA_SECRET_KEY)
+            .update(`total_amount=${totalAmount},transaction_uuid=${transactionUuid},product_code=${productCode}`)
+            .digest("base64");
+
+        return res.status(201).json({
+            order: populatedOrder,
+            payment: {
+                gateway: "eSewa",
+                action: process.env.ESEWA_PAYMENT_URL || "https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+                fields: {
+                    amount: totalAmount,
+                    tax_amount: "0",
+                    total_amount: totalAmount,
+                    transaction_uuid: transactionUuid,
+                    product_code: productCode,
+                    product_service_charge: "0",
+                    product_delivery_charge: "0",
+                    success_url: callbackUrl,
+                    failure_url: `${frontendUrl}/cart?payment=failed`,
+                    signed_field_names: "total_amount,transaction_uuid,product_code",
+                    signature
+                }
+            }
+        });
     } catch (err) {
         console.error("Error creating order:", err);
         res.status(500).json({ message: "Server error while processing checkout", error: err.message });

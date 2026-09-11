@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/cartContext";
 import { useAuth } from "../context/authContext";
-import { ShoppingCart, Trash2, ArrowLeft, CreditCard, ShieldAlert, CheckCircle, MapPin } from "lucide-react";
+import { ShoppingCart, Trash2, ArrowLeft, WalletCards, ShieldAlert, CheckCircle, MapPin } from "lucide-react";
 
 const Cart = () => {
     const navigate = useNavigate();
@@ -18,11 +18,7 @@ const Cart = () => {
     const [zip, setZip] = useState("");
     const [country, setCountry] = useState("United States");
 
-    // Payment Form inputs (Mock)
-    const [cardName, setCardName] = useState("");
-    const [cardNumber, setCardNumber] = useState("");
-    const [expiry, setExpiry] = useState("");
-    const [cvv, setCvv] = useState("");
+    const [paymentMethod, setPaymentMethod] = useState("COD");
 
     const handleCheckout = async (e) => {
         e.preventDefault();
@@ -40,8 +36,8 @@ const Cart = () => {
             return;
         }
 
-        if (!street || !city || !state || !zip || !cardNumber) {
-            alert("Please fill in all shipping details and payment inputs!");
+        if (!street || !city || !state || !zip) {
+            alert("Please fill in all shipping details!");
             return;
         }
 
@@ -58,7 +54,8 @@ const Cart = () => {
                 state,
                 zip,
                 country
-            }
+            },
+            paymentMethod
         };
 
         try {
@@ -77,8 +74,27 @@ const Cart = () => {
                 throw new Error(data.message || "Failed to process order checkout");
             }
 
-            alert("Checkout Successful! Thank you for your purchase!");
             clearCart();
+            if (data.payment.gateway === "Khalti") {
+                window.location.assign(data.payment.redirectUrl);
+                return;
+            }
+            if (data.payment.gateway === "eSewa") {
+                const form = document.createElement("form");
+                form.method = "POST";
+                form.action = data.payment.action;
+                Object.entries(data.payment.fields).forEach(([name, value]) => {
+                    const input = document.createElement("input");
+                    input.type = "hidden";
+                    input.name = name;
+                    input.value = value;
+                    form.appendChild(input);
+                });
+                document.body.appendChild(form);
+                form.submit();
+                return;
+            }
+            alert("Order placed successfully! You can pay when your order is delivered.");
             navigate("/dashboard");
         } catch (err) {
             console.error("Checkout process error:", err);
@@ -287,49 +303,23 @@ const Cart = () => {
 
                             <div className="border-t border-slate-800 pt-4">
                                 <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1">
-                                    <CreditCard className="w-4 h-4 text-purple-400" /> Mock Payment Method
+                                    <WalletCards className="w-4 h-4 text-purple-400" /> Payment Method
                                 </h4>
 
                                 <div className="space-y-3">
-                                    {/* Cardholder Name */}
-                                    <input
-                                        type="text"
-                                        placeholder="Cardholder Name *"
-                                        value={cardName}
-                                        onChange={(e) => setCardName(e.target.value)}
-                                        className="w-full bg-slate-950 border-2 border-black p-2 text-white font-bold text-xs focus:outline-none focus:border-yellow-400 placeholder-slate-600 rounded-sm"
-                                        required
-                                    />
-                                    {/* Card Number */}
-                                    <input
-                                        type="text"
-                                        placeholder="Credit Card Number (Mock) *"
-                                        value={cardNumber}
-                                        onChange={(e) => setCardNumber(e.target.value)}
-                                        className="w-full bg-slate-950 border-2 border-black p-2 text-white font-bold text-xs focus:outline-none focus:border-yellow-400 placeholder-slate-600 rounded-sm"
-                                        required
-                                    />
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {/* Expiry Date */}
-                                        <input
-                                            type="text"
-                                            placeholder="MM/YY *"
-                                            value={expiry}
-                                            onChange={(e) => setExpiry(e.target.value)}
-                                            className="w-full bg-slate-950 border-2 border-black p-2 text-white font-bold text-xs focus:outline-none focus:border-yellow-400 placeholder-slate-600 rounded-sm"
-                                            required
-                                        />
-                                        {/* CVV */}
-                                        <input
-                                            type="password"
-                                            placeholder="CVV *"
-                                            value={cvv}
-                                            onChange={(e) => setCvv(e.target.value)}
-                                            className="w-full bg-slate-950 border-2 border-black p-2 text-white font-bold text-xs focus:outline-none focus:border-yellow-400 placeholder-slate-600 rounded-sm"
-                                            required
-                                        />
-                                    </div>
+                                    {[
+                                        ["COD", "Cash on Delivery", "Pay when your comics arrive."],
+                                        ["Khalti", "Khalti", "You will be redirected to Khalti to pay securely."],
+                                        ["eSewa", "eSewa", "You will be redirected to eSewa to pay securely."]
+                                    ].map(([value, label, description]) => (
+                                        <label key={value} className={`flex items-start gap-3 border-2 p-3 cursor-pointer rounded-sm ${paymentMethod === value ? "border-yellow-400 bg-slate-800" : "border-black bg-slate-950"}`}>
+                                            <input type="radio" name="paymentMethod" value={value} checked={paymentMethod === value} onChange={(e) => setPaymentMethod(e.target.value)} className="mt-1 accent-yellow-400" />
+                                            <span>
+                                                <strong className="block text-xs text-white uppercase">{label}</strong>
+                                                <span className="block text-[11px] text-slate-400 mt-1">{description}</span>
+                                            </span>
+                                        </label>
+                                    ))}
                                 </div>
                             </div>
 
