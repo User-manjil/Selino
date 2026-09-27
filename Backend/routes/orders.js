@@ -49,14 +49,21 @@ router.post("/", authMiddleware, isBuyer, async (req, res) => {
             });
         }
 
-        // Create the order
+        // Create the order with initial tracking entry
         const newOrder = await Order.create({
             buyer: req.user._id,
             items: orderItems,
             totalAmount: calculatedTotal,
             shippingAddress,
             status: "Pending",
-            paymentMethod
+            paymentMethod,
+            trackingHistory: [
+                {
+                    status: "Pending",
+                    note: "Order placed successfully. Awaiting confirmation from seller.",
+                    timestamp: new Date()
+                }
+            ]
         });
 
         // Deduct stock for each comic
@@ -150,6 +157,40 @@ router.get("/buyer", authMiddleware, isBuyer, async (req, res) => {
     }
 });
 
+// GET /api/orders/track/:id - Public order tracking by order ID (buyer must be logged in)
+router.get("/track/:id", authMiddleware, async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id)
+            .populate("items.comic", "title author imageUrl publisher")
+            .populate("buyer", "name email");
+
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        // Only the buyer who owns this order or a seller whose comics are in the order can view
+        const isBuyerOwner = order.buyer._id.toString() === req.user._id.toString();
+        let isSellerInvolved = false;
+
+        if (req.user.role === "seller") {
+            const sellerComics = await Comic.find({ seller: req.user._id });
+            const sellerComicIds = sellerComics.map(c => c._id.toString());
+            isSellerInvolved = order.items.some(item =>
+                item.comic && sellerComicIds.includes(item.comic._id.toString())
+            );
+        }
+
+        if (!isBuyerOwner && !isSellerInvolved) {
+            return res.status(403).json({ message: "You are not authorized to view this order" });
+        }
+
+        res.json(order);
+    } catch (err) {
+        console.error("Error fetching order tracking:", err);
+        res.status(500).json({ message: "Server error while fetching order tracking", error: err.message });
+    }
+});
+
 // GET /api/orders/seller - View orders containing seller's items (Sellers only)
 router.get("/seller", authMiddleware, isSeller, async (req, res) => {
     try {
@@ -160,7 +201,7 @@ router.get("/seller", authMiddleware, isSeller, async (req, res) => {
         // Find orders containing any of those comics
         const orders = await Order.find({ "items.comic": { $in: sellerComicIds } })
             .populate("buyer", "name email")
-            .populate("items.comic", "title author price seller")
+            .populate("items.comic", "title author price seller imageUrl")
             .sort({ createdAt: -1 });
 
         // Format sales stats specifically for this seller
@@ -188,7 +229,9 @@ router.get("/seller", authMiddleware, isSeller, async (req, res) => {
                     items: sellerItems,
                     subtotal: orderSubtotal,
                     status: order.status,
+                    trackingHistory: order.trackingHistory,
                     shippingAddress: order.shippingAddress,
+                    paymentMethod: order.paymentMethod,
                     date: order.createdAt
                 });
             }
@@ -205,6 +248,56 @@ router.get("/seller", authMiddleware, isSeller, async (req, res) => {
     } catch (err) {
         console.error("Error fetching seller sales:", err);
         res.status(500).json({ message: "Server error while fetching sales records", error: err.message });
+    }
+});
+
+// PUT /api/orders/:id/status - Update order status (Sellers only - admin seller)
+router.put("/:id/status", authMiddleware, isSeller, async (req, res) => {
+    try {
+        const { status, note } = req.body;
+        const validStatuses = ["Pending", "Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"];
+
+        if (!status || !validStatuses.includes(status)) {
+            return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+        }
+
+        const order = await Order.findById(req.params.id);
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        // Verify this seller has comics in this order
+        const sellerComics = await Comic.find({ seller: req.user._id });
+        const sellerComicIds = sellerComics.map(c => c._id.toString());
+
+        const populatedOrder = await Order.findById(req.params.id).populate("items.comic", "seller");
+        const hasSellerItems = populatedOrder.items.some(item =>
+            item.comic && item.comic.seller && sellerComicIds.includes(item.comic.seller.toString())
+        );
+
+        if (!hasSellerItems) {
+            return res.status(403).json({ message: "You can only update orders containing your comics" });
+        }
+
+        // Update status and add to tracking history
+        order.status = status;
+        order.trackingHistory.push({
+            status,
+            note: note || `Order status updated to ${status}`,
+            timestamp: new Date()
+        });
+
+        await order.save();
+
+        // Return updated order with populated data
+        const updatedOrder = await Order.findById(order._id)
+            .populate("buyer", "name email")
+            .populate("items.comic", "title author imageUrl price seller");
+
+        res.json(updatedOrder);
+    } catch (err) {
+        console.error("Error updating order status:", err);
+        res.status(500).json({ message: "Server error while updating order status", error: err.message });
     }
 });
 

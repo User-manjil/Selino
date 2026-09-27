@@ -1,7 +1,42 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const Comic = require("../models/comic");
 const { authMiddleware, isSeller } = require("../middleware/auth");
+
+// Configure multer storage for comic cover images
+const uploadsDir = path.join(__dirname, "..", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadsDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname);
+        cb(null, `comic-${uniqueSuffix}${ext}`);
+    }
+});
+
+const fileFilter = (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error("Only .jpg, .jpeg, .png, .gif and .webp image files are allowed!"), false);
+    }
+};
+
+const upload = multer({
+    storage,
+    fileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 // GET /api/comics - Get all comics with optional filter/search
 router.get("/", async (req, res) => {
@@ -61,13 +96,21 @@ router.get("/:id", async (req, res) => {
     }
 });
 
-// POST /api/comics - Create a comic (Sellers only)
-router.post("/", authMiddleware, isSeller, async (req, res) => {
+// POST /api/comics - Create a comic (Sellers only) - supports file upload
+router.post("/", authMiddleware, isSeller, upload.single("coverImage"), async (req, res) => {
     try {
         const { title, author, publisher, genre, description, condition, price, stock, imageUrl } = req.body;
 
         if (!title || !author || !price) {
             return res.status(400).json({ message: "Title, author, and price are required" });
+        }
+
+        // Determine the image URL: uploaded file takes priority, then provided URL, then default
+        let finalImageUrl;
+        if (req.file) {
+            finalImageUrl = `/uploads/${req.file.filename}`;
+        } else if (imageUrl) {
+            finalImageUrl = imageUrl;
         }
 
         const newComic = await Comic.create({
@@ -79,7 +122,7 @@ router.post("/", authMiddleware, isSeller, async (req, res) => {
             condition: condition || "Fine",
             price: Number(price),
             stock: Number(stock) !== undefined ? Number(stock) : 1,
-            imageUrl: imageUrl || undefined,
+            imageUrl: finalImageUrl || undefined,
             seller: req.user._id
         });
 
@@ -90,8 +133,8 @@ router.post("/", authMiddleware, isSeller, async (req, res) => {
     }
 });
 
-// PUT /api/comics/:id - Update a comic (Seller owner only)
-router.put("/:id", authMiddleware, isSeller, async (req, res) => {
+// PUT /api/comics/:id - Update a comic (Seller owner only) - supports file upload
+router.put("/:id", authMiddleware, isSeller, upload.single("coverImage"), async (req, res) => {
     try {
         const comic = await Comic.findById(req.params.id);
         if (!comic) {
@@ -113,7 +156,20 @@ router.put("/:id", authMiddleware, isSeller, async (req, res) => {
         comic.condition = condition || comic.condition;
         comic.price = price !== undefined ? Number(price) : comic.price;
         comic.stock = stock !== undefined ? Number(stock) : comic.stock;
-        if (imageUrl) comic.imageUrl = imageUrl;
+
+        // Handle image update: uploaded file takes priority
+        if (req.file) {
+            // Delete old uploaded file if it was a local upload
+            if (comic.imageUrl && comic.imageUrl.startsWith("/uploads/")) {
+                const oldPath = path.join(__dirname, "..", comic.imageUrl);
+                if (fs.existsSync(oldPath)) {
+                    fs.unlinkSync(oldPath);
+                }
+            }
+            comic.imageUrl = `/uploads/${req.file.filename}`;
+        } else if (imageUrl) {
+            comic.imageUrl = imageUrl;
+        }
 
         const updatedComic = await comic.save();
         res.json(updatedComic);
@@ -134,6 +190,14 @@ router.delete("/:id", authMiddleware, isSeller, async (req, res) => {
         // Verify that current user is the seller of the comic
         if (comic.seller.toString() !== req.user._id.toString()) {
             return res.status(403).json({ message: "Unauthorized. You can only delete your own listings." });
+        }
+
+        // Delete uploaded image file if it was a local upload
+        if (comic.imageUrl && comic.imageUrl.startsWith("/uploads/")) {
+            const filePath = path.join(__dirname, "..", comic.imageUrl);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
         }
 
         await Comic.deleteOne({ _id: req.params.id });
