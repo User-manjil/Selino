@@ -166,8 +166,9 @@ const StatusUpdateForm = ({ orderId, currentStatus, onUpdate }) => {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
                 },
+                credentials: "include",
                 body: JSON.stringify({ status: newStatus, note })
             });
 
@@ -275,7 +276,8 @@ const Dashboard = () => {
         try {
             // 1. Fetch sales
             const salesResponse = await fetch(`${API_URL}/orders/seller`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                credentials: "include"
             });
             if (!salesResponse.ok) throw new Error("Failed to load sales database");
             const sales = await salesResponse.json();
@@ -300,7 +302,8 @@ const Dashboard = () => {
         setError(null);
         try {
             const response = await fetch(`${API_URL}/orders/buyer`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                credentials: "include"
             });
             if (!response.ok) throw new Error("Failed to load order history");
             const data = await response.json();
@@ -330,8 +333,9 @@ const Dashboard = () => {
             const response = await fetch(`${API_URL}/comics/${comicId}`, {
                 method: "DELETE",
                 headers: {
-                    Authorization: `Bearer ${token}`
-                }
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                credentials: "include"
             });
 
             if (response.ok) {

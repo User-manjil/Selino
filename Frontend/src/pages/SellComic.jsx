@@ -173,8 +173,9 @@ const SellComic = () => {
                 response = await fetch(url, {
                     method,
                     headers: {
-                        Authorization: `Bearer ${token}`
+                        ...(token ? { Authorization: `Bearer ${token}` } : {})
                     },
+                    credentials: "include",
                     body: formData
                 });
             } else {
@@ -195,8 +196,9 @@ const SellComic = () => {
                     method,
                     headers: {
                         "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`
+                        ...(token ? { Authorization: `Bearer ${token}` } : {})
                     },
+                    credentials: "include",
                     body: JSON.stringify(comicData)
                 });
             }

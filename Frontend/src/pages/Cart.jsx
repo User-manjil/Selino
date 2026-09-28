@@ -63,8 +63,9 @@ const Cart = () => {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
                 },
+                credentials: "include",
                 body: JSON.stringify(orderData)
             });
 

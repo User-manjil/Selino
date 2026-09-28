@@ -51,8 +51,9 @@ const ComicDetail = () => {
             const response = await fetch(`${API_URL}/comics/${id}`, {
                 method: "DELETE",
                 headers: {
-                    Authorization: `Bearer ${token}`
-                }
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                credentials: "include"
             });
 
             if (response.ok) {

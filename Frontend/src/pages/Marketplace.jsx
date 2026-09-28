@@ -71,8 +71,9 @@ const Marketplace = () => {
             const response = await fetch(`${API_URL}/comics/${comicId}`, {
                 method: "DELETE",
                 headers: {
-                    Authorization: `Bearer ${token}`
-                }
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                credentials: "include"
             });
 
             if (response.ok) {
