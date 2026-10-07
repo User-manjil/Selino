@@ -30,9 +30,25 @@ const OrderSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ["Pending", "Paid", "Shipped", "Delivered", "Cancelled"],
-        default: "Paid"
+        enum: ["Pending", "Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
+        default: "Pending"
     },
+    trackingHistory: [
+        {
+            status: {
+                type: String,
+                required: true
+            },
+            note: {
+                type: String,
+                default: ""
+            },
+            timestamp: {
+                type: Date,
+                default: Date.now
+            }
+        }
+    ],
     shippingAddress: {
         street: { type: String, required: true },
         city: { type: String, required: true },
@@ -42,7 +58,7 @@ const OrderSchema = new mongoose.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ["COD", "Khalti", "eSewa"],
+        enum: ["COD", "eSewa"],
         required: true
     }
 }, { timestamps: true });

@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/authContext";
-import { ArrowLeft, BookOpen, PlusCircle, Save, HelpCircle, Image } from "lucide-react";
+import { ArrowLeft, BookOpen, PlusCircle, Save, HelpCircle, Image, Upload, X } from "lucide-react";
 
 const SellComic = () => {
     const { id } = useParams(); // present if editing
     const isEditMode = !!id;
     const navigate = useNavigate();
     const { token, user, API_URL } = useAuth();
+    const fileInputRef = useRef(null);
 
     // Check if seller
     useEffect(() => {
@@ -38,6 +39,11 @@ const SellComic = () => {
     const [imageUrl, setImageUrl] = useState(presetCovers[5].url);
     const [description, setDescription] = useState("");
 
+    // Image upload states
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+    const [imageSource, setImageSource] = useState("preset"); // "preset", "url", "upload"
+
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(false);
 
@@ -67,8 +73,18 @@ const SellComic = () => {
                 setCondition(data.condition);
                 setPrice(data.price.toString());
                 setStock(data.stock.toString());
-                setImageUrl(data.imageUrl);
                 setDescription(data.description);
+
+                // Determine image source type
+                if (data.imageUrl && data.imageUrl.startsWith("/uploads/")) {
+                    setImageSource("upload");
+                    setImagePreview(`http://localhost:4000${data.imageUrl}`);
+                    setImageUrl("");
+                } else {
+                    const isPreset = presetCovers.some(p => p.url === data.imageUrl);
+                    setImageSource(isPreset ? "preset" : "url");
+                    setImageUrl(data.imageUrl);
+                }
             } catch (err) {
                 console.error("Fetch comic to edit error:", err);
                 alert(err.message || "Failed to load comic for editing");
@@ -80,6 +96,45 @@ const SellComic = () => {
 
         fetchComic();
     }, [id, isEditMode]);
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+        if (!allowedTypes.includes(file.type)) {
+            alert("Only .jpg, .jpeg, .png, .gif and .webp image files are allowed!");
+            return;
+        }
+
+        // Validate file size (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert("File size must be less than 5MB!");
+            return;
+        }
+
+        setImageFile(file);
+        setImageSource("upload");
+        setImageUrl(""); // Clear URL when uploading
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setImagePreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleRemoveUpload = () => {
+        setImageFile(null);
+        setImagePreview(null);
+        setImageSource("preset");
+        setImageUrl(presetCovers[5].url);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -96,30 +151,57 @@ const SellComic = () => {
 
         setLoading(true);
 
-        const comicData = {
-            title,
-            author,
-            publisher,
-            genre,
-            condition,
-            price: Number(price),
-            stock: Number(stock),
-            imageUrl,
-            description
-        };
-
         try {
             const url = isEditMode ? `${API_URL}/comics/${id}` : `${API_URL}/comics`;
             const method = isEditMode ? "PUT" : "POST";
 
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify(comicData)
-            });
+            let response;
+
+            if (imageFile) {
+                // Use FormData for file upload
+                const formData = new FormData();
+                formData.append("title", title);
+                formData.append("author", author);
+                formData.append("publisher", publisher);
+                formData.append("genre", genre);
+                formData.append("condition", condition);
+                formData.append("price", price);
+                formData.append("stock", stock);
+                formData.append("description", description);
+                formData.append("coverImage", imageFile);
+
+                response = await fetch(url, {
+                    method,
+                    headers: {
+                        ...(token ? { Authorization: `Bearer ${token}` } : {})
+                    },
+                    credentials: "include",
+                    body: formData
+                });
+            } else {
+                // Use JSON for URL-based images
+                const comicData = {
+                    title,
+                    author,
+                    publisher,
+                    genre,
+                    condition,
+                    price: Number(price),
+                    stock: Number(stock),
+                    imageUrl,
+                    description
+                };
+
+                response = await fetch(url, {
+                    method,
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { Authorization: `Bearer ${token}` } : {})
+                    },
+                    credentials: "include",
+                    body: JSON.stringify(comicData)
+                });
+            }
 
             const data = await response.json();
 
@@ -135,6 +217,13 @@ const SellComic = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Determine the preview image to show
+    const getPreviewImage = () => {
+        if (imageSource === "upload" && imagePreview) return imagePreview;
+        if (imageUrl) return imageUrl;
+        return null;
     };
 
     if (fetching) {
@@ -268,12 +357,12 @@ const SellComic = () => {
                             {/* Price */}
                             <div>
                                 <label className="block text-xs font-black uppercase text-slate-300 tracking-wider mb-1">
-                                    Listing Price ($ USD) *
+                                    Listing Price (Rs. NPR) *
                                 </label>
                                 <input
                                     type="number"
                                     step="0.01"
-                                    placeholder="29.99"
+                                    placeholder="499.00"
                                     value={price}
                                     onChange={(e) => setPrice(e.target.value)}
                                     className="w-full bg-slate-950 border-2 border-black p-2.5 text-white font-bold text-sm focus:outline-none focus:border-yellow-400 placeholder-slate-600 rounded-sm"
@@ -297,20 +386,6 @@ const SellComic = () => {
                             </div>
                         </div>
 
-                        {/* Image Cover URL */}
-                        <div>
-                            <label className="block text-xs font-black uppercase text-slate-300 tracking-wider mb-1">
-                                Cover Image URL
-                            </label>
-                            <input
-                                type="url"
-                                placeholder="Paste external image address..."
-                                value={imageUrl}
-                                onChange={(e) => setImageUrl(e.target.value)}
-                                className="w-full bg-slate-950 border-2 border-black p-2.5 text-white font-bold text-sm focus:outline-none focus:border-yellow-400 placeholder-slate-600 rounded-sm"
-                            />
-                        </div>
-
                         {/* Description */}
                         <div>
                             <label className="block text-xs font-black uppercase text-slate-300 tracking-wider mb-1">
@@ -326,39 +401,149 @@ const SellComic = () => {
                         </div>
                     </div>
 
-                    {/* Right: Presets & Cover Mockup (4 cols) */}
+                    {/* Right: Image Upload, Presets & Cover Mockup (4 cols) */}
                     <div className="md:col-span-4 flex flex-col justify-between">
                         <div>
-                            <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1">
-                                <Image className="w-4 h-4 text-cyan-400" /> Cover Art Preset
-                            </h3>
-                            
-                            {/* Preset Buttons Grid */}
-                            <div className="grid grid-cols-2 gap-2 mb-6">
-                                {presetCovers.map((preset, index) => (
-                                    <button
-                                        key={index}
-                                        type="button"
-                                        onClick={() => setImageUrl(preset.url)}
-                                        className={`p-2 rounded-sm border text-[10px] font-black uppercase text-left transition-all hover:bg-slate-800 ${
-                                            imageUrl === preset.url
-                                                ? "bg-slate-800 border-yellow-400 text-yellow-400"
-                                                : "bg-slate-950 border-slate-700 text-slate-400"
-                                        }`}
-                                    >
-                                        {preset.name}
-                                    </button>
-                                ))}
+                            {/* Image Source Tabs */}
+                            <div className="flex border-2 border-black rounded-sm overflow-hidden mb-4">
+                                <button
+                                    type="button"
+                                    onClick={() => { setImageSource("upload"); setImageUrl(""); }}
+                                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${
+                                        imageSource === "upload"
+                                            ? "bg-yellow-400 text-black"
+                                            : "bg-slate-950 text-slate-400 hover:text-white"
+                                    }`}
+                                >
+                                    <Upload className="w-3 h-3 inline mr-1" />
+                                    Upload
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setImageSource("url"); setImageFile(null); setImagePreview(null); }}
+                                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider border-x border-black transition-colors cursor-pointer ${
+                                        imageSource === "url"
+                                            ? "bg-yellow-400 text-black"
+                                            : "bg-slate-950 text-slate-400 hover:text-white"
+                                    }`}
+                                >
+                                    <Image className="w-3 h-3 inline mr-1" />
+                                    URL
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setImageSource("preset"); setImageFile(null); setImagePreview(null); setImageUrl(presetCovers[5].url); }}
+                                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${
+                                        imageSource === "preset"
+                                            ? "bg-yellow-400 text-black"
+                                            : "bg-slate-950 text-slate-400 hover:text-white"
+                                    }`}
+                                >
+                                    Presets
+                                </button>
                             </div>
+
+                            {/* Upload Panel */}
+                            {imageSource === "upload" && (
+                                <div className="mb-4">
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                                        onChange={handleFileChange}
+                                        className="hidden"
+                                        id="cover-upload"
+                                    />
+                                    
+                                    {imageFile || imagePreview ? (
+                                        <div className="relative">
+                                            <div className="bg-green-950/30 border border-green-500/40 p-2.5 rounded-sm flex items-center gap-2 text-xs">
+                                                <Upload className="w-4 h-4 text-green-400 shrink-0" />
+                                                <span className="text-green-300 font-bold truncate">
+                                                    {imageFile ? imageFile.name : "Previously uploaded image"}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRemoveUpload}
+                                                    className="ml-auto text-slate-400 hover:text-red-400 shrink-0 cursor-pointer"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-full mt-2 bg-slate-950 border border-slate-700 py-1.5 text-[10px] font-bold uppercase text-slate-400 hover:text-white hover:border-yellow-400 rounded-sm transition-colors cursor-pointer"
+                                            >
+                                                Change File
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <label
+                                            htmlFor="cover-upload"
+                                            className="flex flex-col items-center justify-center border-2 border-dashed border-slate-600 hover:border-yellow-400 bg-slate-950 rounded-sm p-6 cursor-pointer transition-colors group"
+                                        >
+                                            <Upload className="w-8 h-8 text-slate-500 group-hover:text-yellow-400 mb-2 transition-colors" />
+                                            <span className="text-xs font-black uppercase text-slate-400 group-hover:text-yellow-400 transition-colors">
+                                                Click to Upload Cover
+                                            </span>
+                                            <span className="text-[10px] text-slate-500 mt-1">
+                                                JPG, PNG, GIF, WebP • Max 5MB
+                                            </span>
+                                        </label>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* URL Input Panel */}
+                            {imageSource === "url" && (
+                                <div className="mb-4">
+                                    <label className="block text-xs font-black uppercase text-slate-400 tracking-wider mb-1">
+                                        Image URL
+                                    </label>
+                                    <input
+                                        type="url"
+                                        placeholder="Paste external image address..."
+                                        value={imageUrl}
+                                        onChange={(e) => setImageUrl(e.target.value)}
+                                        className="w-full bg-slate-950 border-2 border-black p-2.5 text-white font-bold text-sm focus:outline-none focus:border-yellow-400 placeholder-slate-600 rounded-sm"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Preset Panel */}
+                            {imageSource === "preset" && (
+                                <div className="mb-4">
+                                    <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1">
+                                        <Image className="w-4 h-4 text-cyan-400" /> Cover Art Preset
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {presetCovers.map((preset, index) => (
+                                            <button
+                                                key={index}
+                                                type="button"
+                                                onClick={() => setImageUrl(preset.url)}
+                                                className={`p-2 rounded-sm border text-[10px] font-black uppercase text-left transition-all hover:bg-slate-800 cursor-pointer ${
+                                                    imageUrl === preset.url
+                                                        ? "bg-slate-800 border-yellow-400 text-yellow-400"
+                                                        : "bg-slate-950 border-slate-700 text-slate-400"
+                                                }`}
+                                            >
+                                                {preset.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Cover Preview Card */}
                             <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-2">
                                 Artwork Preview
                             </h3>
                             <div className="aspect-[3/4] bg-slate-950 border-3 border-black rounded-sm overflow-hidden flex items-center justify-center relative shadow-[3px_3px_0px_#000]">
-                                {imageUrl ? (
+                                {getPreviewImage() ? (
                                     <img
-                                        src={imageUrl}
+                                        src={getPreviewImage()}
                                         alt="Artwork Preview"
                                         className="w-full h-full object-cover"
                                         onError={(e) => {
@@ -367,7 +552,10 @@ const SellComic = () => {
                                         }}
                                     />
                                 ) : (
-                                    <HelpCircle className="w-12 h-12 text-slate-700" />
+                                    <div className="flex flex-col items-center text-slate-600">
+                                        <HelpCircle className="w-12 h-12" />
+                                        <span className="text-[10px] font-bold mt-1 uppercase">No Image</span>
+                                    </div>
                                 )}
                             </div>
                         </div>

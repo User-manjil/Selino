@@ -10,37 +10,42 @@ export const AuthProvider = ({ children }) => {
     const API_URL = "http://localhost:4000/api";
 
     useEffect(() => {
-        const verifyToken = async () => {
-            if (!token) {
-                setUser(null);
-                setLoading(false);
-                return;
+        const verifyAuth = async () => {
+            const storedToken = localStorage.getItem("token");
+            const headers = {};
+            if (storedToken) {
+                headers["Authorization"] = `Bearer ${storedToken}`;
             }
 
             try {
+                // Pass credentials: "include" so HTTP-only cookies are automatically sent to the backend
                 const response = await fetch(`${API_URL}/auth/profile`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
+                    method: "GET",
+                    headers,
+                    credentials: "include"
                 });
 
                 if (response.ok) {
                     const data = await response.json();
                     setUser(data.user);
+                    if (storedToken) {
+                        setToken(storedToken);
+                    }
                 } else {
-                    // Token expired or invalid
-                    logout();
+                    // Cookie or token is invalid / expired
+                    localStorage.removeItem("token");
+                    setToken(null);
+                    setUser(null);
                 }
             } catch (err) {
-                console.error("Token verification failed:", err);
-                // Keep token but set loading false to avoid lockouts during network issues
+                console.error("Auth verification failed:", err);
             } finally {
                 setLoading(false);
             }
         };
 
-        verifyToken();
-    }, [token]);
+        verifyAuth();
+    }, []);
 
     const login = async (email, password) => {
         try {
@@ -49,6 +54,7 @@ export const AuthProvider = ({ children }) => {
                 headers: {
                     "Content-Type": "application/json"
                 },
+                credentials: "include", // Receives and stores HTTP-only cookie
                 body: JSON.stringify({ email, password })
             });
 
@@ -58,8 +64,10 @@ export const AuthProvider = ({ children }) => {
                 throw new Error(data.message || "Login failed");
             }
 
-            localStorage.setItem("token", data.token);
-            setToken(data.token);
+            if (data.token) {
+                localStorage.setItem("token", data.token);
+                setToken(data.token);
+            }
             setUser(data.user);
             return data.user;
         } catch (err) {
@@ -75,6 +83,7 @@ export const AuthProvider = ({ children }) => {
                 headers: {
                     "Content-Type": "application/json"
                 },
+                credentials: "include", // Receives and stores HTTP-only cookie
                 body: JSON.stringify({ name, email, password, role })
             });
 
@@ -84,8 +93,10 @@ export const AuthProvider = ({ children }) => {
                 throw new Error(data.message || "Registration failed");
             }
 
-            localStorage.setItem("token", data.token);
-            setToken(data.token);
+            if (data.token) {
+                localStorage.setItem("token", data.token);
+                setToken(data.token);
+            }
             setUser(data.user);
             return data.user;
         } catch (err) {
@@ -94,10 +105,19 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = () => {
-        localStorage.removeItem("token");
-        setToken(null);
-        setUser(null);
+    const logout = async () => {
+        try {
+            await fetch(`${API_URL}/auth/logout`, {
+                method: "POST",
+                credentials: "include" // Clears the HTTP-only cookie
+            });
+        } catch (err) {
+            console.error("Logout error:", err);
+        } finally {
+            localStorage.removeItem("token");
+            setToken(null);
+            setUser(null);
+        }
     };
 
     return (

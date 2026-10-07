@@ -10,6 +10,12 @@ const ComicCard = ({ comic, onDelete }) => {
 
     const isOwner = user && user.role === "seller" && comic.seller && (comic.seller._id === user.id || comic.seller === user.id);
 
+    const getComicImageUrl = (imageUrl) => {
+        if (!imageUrl) return "https://images.unsplash.com/photo-1588497859490-85d1c17db26d?q=80&w=600&auto=format&fit=crop";
+        if (imageUrl.startsWith("/uploads/")) return `http://localhost:4000${imageUrl}`;
+        return imageUrl;
+    };
+
     const getConditionColor = (cond) => {
         switch (cond) {
             case "Mint": return "bg-green-400 text-black";
@@ -29,7 +35,7 @@ const ComicCard = ({ comic, onDelete }) => {
             {/* Image Container */}
             <div className="relative aspect-[3/4] overflow-hidden bg-slate-900 border-b-3 border-black">
                 <img
-                    src={comic.imageUrl}
+                    src={getComicImageUrl(comic.imageUrl)}
                     alt={comic.title}
                     className="w-full h-full object-cover transition-transform duration-200 hover:scale-105"
                     loading="lazy"
@@ -77,7 +83,7 @@ const ComicCard = ({ comic, onDelete }) => {
                 <div className="mt-4 pt-4 border-t border-slate-700/50">
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-2xl font-black text-yellow-400 tracking-wider">
-                            ${comic.price.toFixed(2)}
+                            Rs. {comic.price.toFixed(2)}
                         </span>
                         
                         {/* Stock status */}

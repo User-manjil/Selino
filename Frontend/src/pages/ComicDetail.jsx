@@ -51,8 +51,9 @@ const ComicDetail = () => {
             const response = await fetch(`${API_URL}/comics/${id}`, {
                 method: "DELETE",
                 headers: {
-                    Authorization: `Bearer ${token}`
-                }
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                credentials: "include"
             });
 
             if (response.ok) {
@@ -213,7 +214,7 @@ const ComicDetail = () => {
                             <div className="flex flex-col text-center sm:text-left self-stretch sm:self-auto">
                                 <span className="text-xs font-black uppercase tracking-wider text-slate-400">Listed Price</span>
                                 <span className="text-3xl md:text-4xl font-black text-yellow-400 mt-1 tracking-widest">
-                                    ${comic.price.toFixed(2)}
+                                    Rs. {comic.price.toFixed(2)}
                                 </span>
                             </div>
 

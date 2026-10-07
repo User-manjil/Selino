@@ -1,10 +1,227 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
-import { BookOpen, DollarSign, ShoppingBag, TrendingUp, User, MapPin, ClipboardList, ShieldAlert, Edit, Trash2 } from "lucide-react";
+import { BookOpen, DollarSign, ShoppingBag, TrendingUp, User, MapPin, ClipboardList, ShieldAlert, Edit, Trash2, Package, Truck, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Send } from "lucide-react";
+
+const ORDER_STATUSES = ["Pending", "Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered"];
+
+const getStatusIcon = (status) => {
+    switch (status) {
+        case "Pending": return <Clock className="w-4 h-4" />;
+        case "Confirmed": return <CheckCircle className="w-4 h-4" />;
+        case "Packed": return <Package className="w-4 h-4" />;
+        case "Shipped": return <Truck className="w-4 h-4" />;
+        case "Out for Delivery": return <Truck className="w-4 h-4" />;
+        case "Delivered": return <CheckCircle className="w-4 h-4" />;
+        case "Cancelled": return <XCircle className="w-4 h-4" />;
+        default: return <Clock className="w-4 h-4" />;
+    }
+};
+
+const getStatusColor = (status) => {
+    switch (status) {
+        case "Pending": return "text-amber-400 bg-amber-950/40 border-amber-500/40";
+        case "Confirmed": return "text-blue-400 bg-blue-950/40 border-blue-500/40";
+        case "Packed": return "text-purple-400 bg-purple-950/40 border-purple-500/40";
+        case "Shipped": return "text-cyan-400 bg-cyan-950/40 border-cyan-500/40";
+        case "Out for Delivery": return "text-orange-400 bg-orange-950/40 border-orange-500/40";
+        case "Delivered": return "text-green-400 bg-green-950/40 border-green-500/40";
+        case "Cancelled": return "text-red-400 bg-red-950/40 border-red-500/40";
+        default: return "text-slate-400 bg-slate-800 border-slate-600";
+    }
+};
+
+const getStatusBadgeColor = (status) => {
+    switch (status) {
+        case "Pending": return "bg-amber-500 text-black";
+        case "Confirmed": return "bg-blue-500 text-white";
+        case "Packed": return "bg-purple-500 text-white";
+        case "Shipped": return "bg-cyan-500 text-black";
+        case "Out for Delivery": return "bg-orange-500 text-black";
+        case "Delivered": return "bg-green-500 text-black";
+        case "Cancelled": return "bg-red-500 text-white";
+        default: return "bg-slate-500 text-white";
+    }
+};
+
+// Order Tracking Timeline Component
+const TrackingTimeline = ({ trackingHistory, currentStatus }) => {
+    if (!trackingHistory || trackingHistory.length === 0) return null;
+
+    return (
+        <div className="mt-4 pt-4 border-t border-slate-800">
+            <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1">
+                <Truck className="w-3.5 h-3.5 text-cyan-400" /> Order Tracking Timeline
+            </h4>
+            <div className="space-y-0">
+                {trackingHistory.slice().reverse().map((entry, idx) => (
+                    <div key={idx} className="flex gap-3 relative">
+                        {/* Timeline line */}
+                        {idx !== trackingHistory.length - 1 && (
+                            <div className="absolute left-[9px] top-6 w-[2px] h-full bg-slate-700"></div>
+                        )}
+                        {/* Dot */}
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 z-10 ${
+                            idx === 0
+                                ? "border-yellow-400 bg-yellow-400/20"
+                                : "border-slate-600 bg-slate-800"
+                        }`}>
+                            <div className={`w-2 h-2 rounded-full ${idx === 0 ? "bg-yellow-400" : "bg-slate-600"}`}></div>
+                        </div>
+                        {/* Content */}
+                        <div className="pb-4 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`comic-badge text-[9px] py-0 px-1.5 ${getStatusBadgeColor(entry.status)}`}>
+                                    {entry.status}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-semibold">
+                                    {new Date(entry.timestamp).toLocaleString()}
+                                </span>
+                            </div>
+                            {entry.note && (
+                                <p className="text-xs text-slate-400 mt-1 font-medium leading-relaxed">{entry.note}</p>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// Status Progress Bar Component
+const StatusProgressBar = ({ currentStatus }) => {
+    if (currentStatus === "Cancelled") {
+        return (
+            <div className="flex items-center gap-2 mt-3 p-2 bg-red-950/30 border border-red-500/30 rounded-sm">
+                <XCircle className="w-4 h-4 text-red-500" />
+                <span className="text-xs font-black text-red-400 uppercase">Order Cancelled</span>
+            </div>
+        );
+    }
+
+    const currentIdx = ORDER_STATUSES.indexOf(currentStatus);
+
+    return (
+        <div className="mt-3">
+            <div className="flex items-center justify-between mb-1.5">
+                {ORDER_STATUSES.map((status, idx) => (
+                    <div key={status} className="flex flex-col items-center flex-1 relative">
+                        {/* Connector line */}
+                        {idx > 0 && (
+                            <div className={`absolute top-[10px] right-1/2 w-full h-[3px] -z-0 ${
+                                idx <= currentIdx ? "bg-green-500" : "bg-slate-700"
+                            }`}></div>
+                        )}
+                        {/* Dot */}
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center z-10 ${
+                            idx < currentIdx
+                                ? "bg-green-500 border-green-400"
+                                : idx === currentIdx
+                                    ? "bg-yellow-400 border-yellow-300 animate-pulse"
+                                    : "bg-slate-800 border-slate-600"
+                        }`}>
+                            {idx < currentIdx && <CheckCircle className="w-3 h-3 text-white" />}
+                            {idx === currentIdx && <div className="w-2 h-2 bg-black rounded-full"></div>}
+                        </div>
+                        {/* Label */}
+                        <span className={`text-[8px] sm:text-[9px] font-bold uppercase mt-1 text-center leading-tight ${
+                            idx <= currentIdx ? "text-green-400" : "text-slate-500"
+                        }`}>
+                            {status === "Out for Delivery" ? "Out" : status}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// Seller Status Update Component
+const StatusUpdateForm = ({ orderId, currentStatus, onUpdate }) => {
+    const [newStatus, setNewStatus] = useState("");
+    const [note, setNote] = useState("");
+    const [updating, setUpdating] = useState(false);
+    const { token, API_URL } = useAuth();
+
+    const allStatuses = ["Pending", "Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"];
+    const availableStatuses = allStatuses.filter(s => s !== currentStatus);
+
+    const handleUpdate = async () => {
+        if (!newStatus) {
+            alert("Please select a status to update to");
+            return;
+        }
+
+        setUpdating(true);
+        try {
+            const response = await fetch(`${API_URL}/orders/${orderId}/status`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                credentials: "include",
+                body: JSON.stringify({ status: newStatus, note })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || "Failed to update order status");
+
+            alert(`Order status updated to "${newStatus}" successfully!`);
+            setNewStatus("");
+            setNote("");
+            if (onUpdate) onUpdate();
+        } catch (err) {
+            console.error("Status update error:", err);
+            alert(err.message || "Error updating order status");
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    return (
+        <div className="mt-3 pt-3 border-t border-slate-700">
+            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2 flex items-center gap-1">
+                <Send className="w-3 h-3 text-yellow-400" /> Update Order Status
+            </h4>
+            <div className="flex flex-col gap-2">
+                <select
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-1.5 text-white font-bold text-[11px] focus:outline-none focus:border-yellow-400 rounded-sm cursor-pointer"
+                >
+                    <option value="">Select status (Current: {currentStatus})...</option>
+                    {availableStatuses.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                    ))}
+                </select>
+                <input
+                    type="text"
+                    placeholder="Add a note (optional)..."
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-1.5 text-white font-semibold text-[11px] focus:outline-none focus:border-yellow-400 placeholder-slate-600 rounded-sm"
+                />
+                <button
+                    onClick={handleUpdate}
+                    disabled={!newStatus || updating}
+                    className={`w-full py-1.5 text-[11px] font-black uppercase rounded-sm cursor-pointer border transition-colors ${
+                        newStatus
+                            ? "comic-btn-yellow !py-1.5 !px-3 !text-[11px]"
+                            : "bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed"
+                    }`}
+                >
+                    {updating ? "Updating..." : "Update Status"}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 
 const Dashboard = () => {
-    const { user, token, API_URL } = useAuth();
+    const { user, token, loading: authLoading, API_URL } = useAuth();
     const navigate = useNavigate();
 
     const [activeTab, setActiveTab] = useState("listings"); // listings or sales (seller specific)
@@ -18,14 +235,40 @@ const Dashboard = () => {
     const [myOrders, setMyOrders] = useState([]);
     const [buyerLoading, setBuyerLoading] = useState(true);
 
+    // Expanded order tracking
+    const [expandedOrders, setExpandedOrders] = useState({});
+
     const [error, setError] = useState(null);
 
     // Redirect if guest
     useEffect(() => {
-        if (!user) {
+        if (!authLoading && !user) {
             navigate("/login");
         }
-    }, [user, navigate]);
+    }, [user, authLoading, navigate]);
+
+    if (authLoading) {
+        return (
+            <div className="flex-grow flex items-center justify-center p-12">
+                <div className="text-center font-black uppercase text-yellow-400 tracking-wider text-sm animate-pulse">
+                    Loading ComicVerse Dashboard...
+                </div>
+            </div>
+        );
+    }
+
+    const toggleOrderExpand = (orderId) => {
+        setExpandedOrders(prev => ({
+            ...prev,
+            [orderId]: !prev[orderId]
+        }));
+    };
+
+    const getComicImageUrl = (imageUrl) => {
+        if (!imageUrl) return "https://images.unsplash.com/photo-1588497859490-85d1c17db26d?q=80&w=600&auto=format&fit=crop";
+        if (imageUrl.startsWith("/uploads/")) return `http://localhost:4000${imageUrl}`;
+        return imageUrl;
+    };
 
     const fetchSellerData = async () => {
         if (!user || user.role !== "seller") return;
@@ -34,7 +277,8 @@ const Dashboard = () => {
         try {
             // 1. Fetch sales
             const salesResponse = await fetch(`${API_URL}/orders/seller`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                credentials: "include"
             });
             if (!salesResponse.ok) throw new Error("Failed to load sales database");
             const sales = await salesResponse.json();
@@ -59,7 +303,8 @@ const Dashboard = () => {
         setError(null);
         try {
             const response = await fetch(`${API_URL}/orders/buyer`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                credentials: "include"
             });
             if (!response.ok) throw new Error("Failed to load order history");
             const data = await response.json();
@@ -89,8 +334,9 @@ const Dashboard = () => {
             const response = await fetch(`${API_URL}/comics/${comicId}`, {
                 method: "DELETE",
                 headers: {
-                    Authorization: `Bearer ${token}`
-                }
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                credentials: "include"
             });
 
             if (response.ok) {
@@ -152,7 +398,7 @@ const Dashboard = () => {
                             </div>
                             <div>
                                 <span className="text-xs text-slate-400 font-extrabold uppercase tracking-wider block">Total Revenue</span>
-                                <span className="text-2xl font-black text-white">${salesData.stats.totalEarnings.toFixed(2)}</span>
+                                <span className="text-2xl font-black text-white">Rs. {salesData.stats.totalEarnings.toFixed(2)}</span>
                             </div>
                         </div>
 
@@ -195,7 +441,7 @@ const Dashboard = () => {
                                 activeTab === "sales" ? "bg-slate-900 text-yellow-400" : "text-slate-400 hover:text-white"
                             }`}
                         >
-                            Sales History ({salesData.sales.length})
+                            Order Management ({salesData.sales.length})
                         </button>
                     </div>
 
@@ -234,7 +480,7 @@ const Dashboard = () => {
                                             <tr key={c._id} className="hover:bg-slate-800/40">
                                                 <td className="p-4">
                                                     <img
-                                                        src={c.imageUrl}
+                                                        src={getComicImageUrl(c.imageUrl)}
                                                         alt={c.title}
                                                         className="w-10 h-14 object-cover border-2 border-black rounded-sm"
                                                     />
@@ -250,7 +496,7 @@ const Dashboard = () => {
                                                 <td className="p-4 text-xs font-black uppercase">
                                                     <span className="bg-slate-950 border border-slate-700 px-2 py-0.5 rounded-sm text-yellow-400">{c.condition}</span>
                                                 </td>
-                                                <td className="p-4 font-black text-yellow-400">${c.price.toFixed(2)}</td>
+                                                <td className="p-4 font-black text-yellow-400">Rs. {c.price.toFixed(2)}</td>
                                                 <td className="p-4">
                                                     {c.stock === 0 ? (
                                                         <span className="text-xs text-red-500 font-extrabold uppercase bg-red-950/20 px-1.5 py-0.5 rounded-sm border border-red-500/20">Sold Out</span>
@@ -278,70 +524,102 @@ const Dashboard = () => {
                             </div>
                         )
                     ) : (
-                        /* SALES HISTORIES TAB */
+                        /* ORDER MANAGEMENT TAB (Seller) */
                         salesData.sales.length === 0 ? (
                             <div className="bg-slate-900 border-4 border-black p-8 text-center rounded-sm shadow-[4px_4px_0px_#000]">
                                 <ClipboardList className="w-12 h-12 text-slate-700 mx-auto mb-3" />
-                                <h3 className="text-lg font-black uppercase text-slate-400">No sales history yet</h3>
+                                <h3 className="text-lg font-black uppercase text-slate-400">No orders yet</h3>
                                 <p className="text-slate-500 text-xs mt-1">When buyers purchase your listed comics, records will appear here.</p>
                             </div>
                         ) : (
                             <div className="space-y-6">
                                 {salesData.sales.map((order, idx) => (
-                                    <div key={order.orderId || idx} className="bg-slate-900 border-4 border-black p-5 rounded-sm shadow-[4px_4px_0px_#000] flex flex-col md:flex-row justify-between gap-6">
-                                        <div className="space-y-3 text-sm flex-grow">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span className="comic-badge bg-green-500 text-black">INVOICE PAID</span>
-                                                <span className="text-xs text-slate-400 font-bold">Order ID: #{order.orderId}</span>
+                                    <div key={order.orderId || idx} className="bg-slate-900 border-4 border-black rounded-sm shadow-[4px_4px_0px_#000] overflow-hidden">
+                                        {/* Order Header - clickable to expand */}
+                                        <div
+                                            onClick={() => toggleOrderExpand(order.orderId)}
+                                            className="p-5 flex flex-col md:flex-row justify-between gap-4 cursor-pointer hover:bg-slate-800/30 transition-colors"
+                                        >
+                                            <div className="flex flex-wrap items-center gap-2 flex-grow">
+                                                <span className={`comic-badge ${getStatusBadgeColor(order.status)}`}>
+                                                    {getStatusIcon(order.status)}
+                                                    <span className="ml-1">{order.status}</span>
+                                                </span>
+                                                <span className="text-xs text-slate-400 font-bold">Order #{order.orderId?.slice(-8)}</span>
                                                 <span className="text-xs text-slate-400 font-bold">&bull; {new Date(order.date).toLocaleDateString()}</span>
+                                                <span className="text-xs text-slate-400 font-bold">&bull; {order.paymentMethod || "COD"}</span>
                                             </div>
-                                            
-                                            {/* Items listed */}
-                                            <div className="divide-y divide-slate-800">
-                                                {order.items.map((item, itemIdx) => (
-                                                    <div key={itemIdx} className="py-2 flex items-center gap-3">
-                                                        <div className="w-8 h-11 bg-slate-950 border border-slate-700 shrink-0">
-                                                            {item.comic && (
-                                                                <img
-                                                                    src={item.comic.imageUrl}
-                                                                    alt={item.comic.title}
-                                                                    className="w-full h-full object-cover"
-                                                                />
-                                                            )}
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-extrabold text-white">{item.comic ? item.comic.title : "Deleted Comic"}</p>
-                                                            <p className="text-xs text-slate-400">Qty: {item.quantity} &bull; Price: ${item.price.toFixed(2)} each</p>
-                                                        </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-lg font-black text-yellow-400">Rs. {order.subtotal.toFixed(2)}</span>
+                                                {expandedOrders[order.orderId]
+                                                    ? <ChevronUp className="w-5 h-5 text-slate-400" />
+                                                    : <ChevronDown className="w-5 h-5 text-slate-400" />
+                                                }
+                                            </div>
+                                        </div>
+
+                                        {/* Expanded Content */}
+                                        {expandedOrders[order.orderId] && (
+                                            <div className="border-t-2 border-black p-5 flex flex-col md:flex-row gap-6">
+                                                <div className="space-y-3 text-sm flex-grow">
+                                                    {/* Items listed */}
+                                                    <div className="divide-y divide-slate-800">
+                                                        {order.items.map((item, itemIdx) => (
+                                                            <div key={itemIdx} className="py-2 flex items-center gap-3">
+                                                                <div className="w-8 h-11 bg-slate-950 border border-slate-700 shrink-0 overflow-hidden">
+                                                                    {item.comic && (
+                                                                        <img
+                                                                            src={getComicImageUrl(item.comic.imageUrl)}
+                                                                            alt={item.comic.title}
+                                                                            className="w-full h-full object-cover"
+                                                                        />
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-extrabold text-white">{item.comic ? item.comic.title : "Deleted Comic"}</p>
+                                                                    <p className="text-xs text-slate-400">Qty: {item.quantity} &bull; Price: Rs. {item.price.toFixed(2)} each</p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
                                                     </div>
-                                                ))}
-                                            </div>
-                                        </div>
 
-                                        {/* Buyer / Shipping / Subtotal */}
-                                        <div className="md:w-72 md:border-l border-slate-800 md:pl-6 text-xs flex flex-col justify-between shrink-0">
-                                            <div>
-                                                <h4 className="font-black uppercase text-slate-400 tracking-wider mb-1.5 flex items-center gap-1">
-                                                    <User className="w-3.5 h-3.5 text-yellow-400" /> Buyer Profile
-                                                </h4>
-                                                <p className="font-bold text-white">{order.buyer ? order.buyer.name : "Unknown Buyer"}</p>
-                                                <p className="text-slate-400">{order.buyer ? order.buyer.email : "No contact details"}</p>
+                                                    {/* Tracking Timeline */}
+                                                    {order.trackingHistory && order.trackingHistory.length > 0 && (
+                                                        <TrackingTimeline
+                                                            trackingHistory={order.trackingHistory}
+                                                            currentStatus={order.status}
+                                                        />
+                                                    )}
+                                                </div>
 
-                                                <h4 className="font-black uppercase text-slate-400 tracking-wider mt-4 mb-1.5 flex items-center gap-1">
-                                                    <MapPin className="w-3.5 h-3.5 text-cyan-400" /> Shipping Destination
-                                                </h4>
-                                                <p className="text-slate-300 font-medium leading-normal">
-                                                    {order.shippingAddress.street}, <br/>
-                                                    {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}, <br/>
-                                                    {order.shippingAddress.country}
-                                                </p>
-                                            </div>
+                                                {/* Buyer / Shipping / Status Update */}
+                                                <div className="md:w-72 md:border-l border-slate-800 md:pl-6 text-xs flex flex-col justify-between shrink-0">
+                                                    <div>
+                                                        <h4 className="font-black uppercase text-slate-400 tracking-wider mb-1.5 flex items-center gap-1">
+                                                            <User className="w-3.5 h-3.5 text-yellow-400" /> Buyer Profile
+                                                        </h4>
+                                                        <p className="font-bold text-white">{order.buyer ? order.buyer.name : "Unknown Buyer"}</p>
+                                                        <p className="text-slate-400">{order.buyer ? order.buyer.email : "No contact details"}</p>
 
-                                            <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
-                                                <span className="font-black uppercase text-slate-400">Seller Earnings:</span>
-                                                <span className="text-lg font-black text-yellow-400">${order.subtotal.toFixed(2)}</span>
+                                                        <h4 className="font-black uppercase text-slate-400 tracking-wider mt-4 mb-1.5 flex items-center gap-1">
+                                                            <MapPin className="w-3.5 h-3.5 text-cyan-400" /> Shipping Destination
+                                                        </h4>
+                                                        <p className="text-slate-300 font-medium leading-normal">
+                                                            {order.shippingAddress.street}, <br/>
+                                                            {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}, <br/>
+                                                            {order.shippingAddress.country}
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Status Update Form */}
+                                                    <StatusUpdateForm
+                                                        orderId={order.orderId}
+                                                        currentStatus={order.status}
+                                                        onUpdate={fetchSellerData}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -355,7 +633,7 @@ const Dashboard = () => {
                 <div>
                     <h2 className="text-xl font-black uppercase text-slate-300 tracking-wider mb-6 flex items-center gap-2">
                         <span className="w-2.5 h-6 bg-yellow-400 inline-block border border-black"></span>
-                        Purchase Order History ({myOrders.length})
+                        My Orders ({myOrders.length})
                     </h2>
 
                     {buyerLoading ? (
@@ -374,54 +652,94 @@ const Dashboard = () => {
                     ) : (
                         <div className="space-y-6">
                             {myOrders.map(order => (
-                                <div key={order._id} className="bg-slate-900 border-4 border-black p-5 rounded-sm shadow-[4px_4px_0px_#000] flex flex-col md:flex-row justify-between gap-6">
-                                    <div className="space-y-3 flex-grow text-sm">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className="comic-badge bg-green-400 text-black">PAID & COMPLETED</span>
-                                            <span className="text-xs text-slate-400 font-bold">Order ID: #{order._id}</span>
+                                <div key={order._id} className="bg-slate-900 border-4 border-black rounded-sm shadow-[4px_4px_0px_#000] overflow-hidden">
+                                    {/* Order Header - clickable */}
+                                    <div
+                                        onClick={() => toggleOrderExpand(order._id)}
+                                        className="p-5 flex flex-col md:flex-row justify-between gap-4 cursor-pointer hover:bg-slate-800/30 transition-colors"
+                                    >
+                                        <div className="flex flex-wrap items-center gap-2 flex-grow">
+                                            <span className={`comic-badge ${getStatusBadgeColor(order.status)} flex items-center gap-1`}>
+                                                {getStatusIcon(order.status)}
+                                                <span>{order.status}</span>
+                                            </span>
+                                            <span className="text-xs text-slate-400 font-bold">Order #{order._id?.slice(-8)}</span>
                                             <span className="text-xs text-slate-400 font-bold">&bull; {new Date(order.createdAt).toLocaleDateString()}</span>
+                                            <span className="text-xs text-slate-400 font-bold">&bull; {order.paymentMethod}</span>
                                         </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-lg font-black text-yellow-400">Rs. {order.totalAmount.toFixed(2)}</span>
+                                            {expandedOrders[order._id]
+                                                ? <ChevronUp className="w-5 h-5 text-slate-400" />
+                                                : <ChevronDown className="w-5 h-5 text-slate-400" />
+                                            }
+                                        </div>
+                                    </div>
 
-                                        {/* Items */}
-                                        <div className="divide-y divide-slate-800 mt-2">
-                                            {order.items.map((item, idx) => (
-                                                <div key={idx} className="py-2 flex items-center gap-3">
-                                                    <div className="w-9 h-12 bg-slate-950 border border-slate-700 shrink-0">
-                                                        {item.comic && (
-                                                            <img
-                                                                src={item.comic.imageUrl}
-                                                                alt={item.comic.title}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-extrabold text-white">{item.comic ? item.comic.title : "Unavailable Comic"}</p>
-                                                        <p className="text-xs text-slate-400">Qty: {item.quantity} &bull; Price: ${item.price.toFixed(2)} each</p>
-                                                    </div>
+                                    {/* Status Progress Bar (always visible) */}
+                                    <div className="px-5 pb-3">
+                                        <StatusProgressBar currentStatus={order.status} />
+                                    </div>
+
+                                    {/* Expanded Content */}
+                                    {expandedOrders[order._id] && (
+                                        <div className="border-t-2 border-black p-5 flex flex-col md:flex-row gap-6">
+                                            <div className="space-y-3 flex-grow text-sm">
+                                                {/* Items */}
+                                                <div className="divide-y divide-slate-800">
+                                                    {order.items.map((item, idx) => (
+                                                        <div key={idx} className="py-2 flex items-center gap-3">
+                                                            <div className="w-9 h-12 bg-slate-950 border border-slate-700 shrink-0 overflow-hidden">
+                                                                {item.comic && (
+                                                                    <img
+                                                                        src={getComicImageUrl(item.comic.imageUrl)}
+                                                                        alt={item.comic.title}
+                                                                        className="w-full h-full object-cover"
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-extrabold text-white">{item.comic ? item.comic.title : "Unavailable Comic"}</p>
+                                                                <p className="text-xs text-slate-400">Qty: {item.quantity} &bull; Price: Rs. {item.price.toFixed(2)} each</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
 
-                                    {/* Shipping details and total */}
-                                    <div className="md:w-64 md:border-l border-slate-800 md:pl-6 text-xs flex flex-col justify-between shrink-0">
-                                        <div>
-                                            <h4 className="font-black uppercase text-slate-400 tracking-wider mb-1.5 flex items-center gap-1">
-                                                <MapPin className="w-3.5 h-3.5 text-cyan-400" /> Shipping Destination
-                                            </h4>
-                                            <p className="text-slate-300 font-medium leading-normal">
-                                                {order.shippingAddress.street}, <br/>
-                                                {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}, <br/>
-                                                {order.shippingAddress.country}
-                                            </p>
-                                        </div>
+                                                {/* Tracking Timeline */}
+                                                {order.trackingHistory && order.trackingHistory.length > 0 && (
+                                                    <TrackingTimeline
+                                                        trackingHistory={order.trackingHistory}
+                                                        currentStatus={order.status}
+                                                    />
+                                                )}
+                                            </div>
 
-                                        <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
-                                            <span className="font-black uppercase text-slate-400">Total Charged:</span>
-                                            <span className="text-xl font-black text-yellow-400">${order.totalAmount.toFixed(2)}</span>
+                                            {/* Shipping details */}
+                                            <div className="md:w-64 md:border-l border-slate-800 md:pl-6 text-xs flex flex-col justify-between shrink-0">
+                                                <div>
+                                                    <h4 className="font-black uppercase text-slate-400 tracking-wider mb-1.5 flex items-center gap-1">
+                                                        <MapPin className="w-3.5 h-3.5 text-cyan-400" /> Shipping Destination
+                                                    </h4>
+                                                    <p className="text-slate-300 font-medium leading-normal">
+                                                        {order.shippingAddress.street}, <br/>
+                                                        {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}, <br/>
+                                                        {order.shippingAddress.country}
+                                                    </p>
+
+                                                    <h4 className="font-black uppercase text-slate-400 tracking-wider mt-4 mb-1.5 flex items-center gap-1">
+                                                        <Package className="w-3.5 h-3.5 text-purple-400" /> Payment Method
+                                                    </h4>
+                                                    <p className="font-bold text-white">{order.paymentMethod}</p>
+                                                </div>
+
+                                                <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
+                                                    <span className="font-black uppercase text-slate-400">Total Charged:</span>
+                                                    <span className="text-xl font-black text-yellow-400">Rs. {order.totalAmount.toFixed(2)}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
