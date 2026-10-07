@@ -76,10 +76,6 @@ const Cart = () => {
             }
 
             clearCart();
-            if (data.payment.gateway === "Khalti") {
-                window.location.assign(data.payment.redirectUrl);
-                return;
-            }
             if (data.payment.gateway === "eSewa") {
                 const form = document.createElement("form");
                 form.method = "POST";
@@ -157,7 +153,7 @@ const Cart = () => {
                                 <div className="flex flex-wrap items-center justify-between gap-4 mt-3">
                                     {/* Price counter */}
                                     <span className="font-black text-yellow-400 text-base">
-                                        ${item.comic.price.toFixed(2)} each
+                                        Rs. {item.comic.price.toFixed(2)} each
                                     </span>
                                     
                                     {/* Quantity picker */}
@@ -207,12 +203,12 @@ const Cart = () => {
                         {cart.map((item, idx) => (
                             <div key={idx} className="flex justify-between items-center text-slate-300">
                                 <span className="truncate pr-4">{item.comic.title} (x{item.quantity})</span>
-                                <span className="font-bold text-white shrink-0">${(item.comic.price * item.quantity).toFixed(2)}</span>
+                                <span className="font-bold text-white shrink-0">Rs. {(item.comic.price * item.quantity).toFixed(2)}</span>
                             </div>
                         ))}
                         <div className="pt-3 border-t border-slate-800/80 flex justify-between items-center text-sm font-black">
                             <span className="text-slate-400 uppercase">Est. Subtotal:</span>
-                            <span className="text-yellow-400 text-lg">${getCartTotal().toFixed(2)}</span>
+                            <span className="text-yellow-400 text-lg">Rs. {getCartTotal().toFixed(2)}</span>
                         </div>
                     </div>
 
@@ -292,11 +288,11 @@ const Cart = () => {
                                             onChange={(e) => setCountry(e.target.value)}
                                             className="w-full bg-slate-950 border-2 border-black p-2 text-white font-bold text-xs focus:outline-none focus:border-yellow-400 rounded-sm cursor-pointer"
                                         >
+                                            <option value="Nepal">Nepal</option>
                                             <option value="United States">United States</option>
                                             <option value="Canada">Canada</option>
                                             <option value="United Kingdom">United Kingdom</option>
                                             <option value="Australia">Australia</option>
-                                            <option value="Nepal">Nepal</option>
                                         </select>
                                     </div>
                                 </div>
@@ -310,8 +306,7 @@ const Cart = () => {
                                 <div className="space-y-3">
                                     {[
                                         ["COD", "Cash on Delivery", "Pay when your comics arrive."],
-                                        ["Khalti", "Khalti", "You will be redirected to Khalti to pay securely."],
-                                        ["eSewa", "eSewa", "You will be redirected to eSewa to pay securely."]
+                                        ["eSewa", "eSewa", "You will be redirected to eSewa to pay securely in NPR."]
                                     ].map(([value, label, description]) => (
                                         <label key={value} className={`flex items-start gap-3 border-2 p-3 cursor-pointer rounded-sm ${paymentMethod === value ? "border-yellow-400 bg-slate-800" : "border-black bg-slate-950"}`}>
                                             <input type="radio" name="paymentMethod" value={value} checked={paymentMethod === value} onChange={(e) => setPaymentMethod(e.target.value)} className="mt-1 accent-yellow-400" />

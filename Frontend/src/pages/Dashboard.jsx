@@ -144,15 +144,8 @@ const StatusUpdateForm = ({ orderId, currentStatus, onUpdate }) => {
     const [updating, setUpdating] = useState(false);
     const { token, API_URL } = useAuth();
 
-    const getNextStatuses = () => {
-        const currentIdx = ORDER_STATUSES.indexOf(currentStatus);
-        if (currentStatus === "Delivered" || currentStatus === "Cancelled") return [];
-        const nextStatuses = ORDER_STATUSES.slice(currentIdx + 1);
-        nextStatuses.push("Cancelled");
-        return nextStatuses;
-    };
-
-    const nextStatuses = getNextStatuses();
+    const allStatuses = ["Pending", "Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"];
+    const availableStatuses = allStatuses.filter(s => s !== currentStatus);
 
     const handleUpdate = async () => {
         if (!newStatus) {
@@ -187,8 +180,6 @@ const StatusUpdateForm = ({ orderId, currentStatus, onUpdate }) => {
         }
     };
 
-    if (nextStatuses.length === 0) return null;
-
     return (
         <div className="mt-3 pt-3 border-t border-slate-700">
             <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2 flex items-center gap-1">
@@ -200,8 +191,8 @@ const StatusUpdateForm = ({ orderId, currentStatus, onUpdate }) => {
                     onChange={(e) => setNewStatus(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 p-1.5 text-white font-bold text-[11px] focus:outline-none focus:border-yellow-400 rounded-sm cursor-pointer"
                 >
-                    <option value="">Select next status...</option>
-                    {nextStatuses.map(s => (
+                    <option value="">Select status (Current: {currentStatus})...</option>
+                    {availableStatuses.map(s => (
                         <option key={s} value={s}>{s}</option>
                     ))}
                 </select>
@@ -230,7 +221,7 @@ const StatusUpdateForm = ({ orderId, currentStatus, onUpdate }) => {
 
 
 const Dashboard = () => {
-    const { user, token, API_URL } = useAuth();
+    const { user, token, loading: authLoading, API_URL } = useAuth();
     const navigate = useNavigate();
 
     const [activeTab, setActiveTab] = useState("listings"); // listings or sales (seller specific)
@@ -251,10 +242,20 @@ const Dashboard = () => {
 
     // Redirect if guest
     useEffect(() => {
-        if (!user) {
+        if (!authLoading && !user) {
             navigate("/login");
         }
-    }, [user, navigate]);
+    }, [user, authLoading, navigate]);
+
+    if (authLoading) {
+        return (
+            <div className="flex-grow flex items-center justify-center p-12">
+                <div className="text-center font-black uppercase text-yellow-400 tracking-wider text-sm animate-pulse">
+                    Loading ComicVerse Dashboard...
+                </div>
+            </div>
+        );
+    }
 
     const toggleOrderExpand = (orderId) => {
         setExpandedOrders(prev => ({
@@ -397,7 +398,7 @@ const Dashboard = () => {
                             </div>
                             <div>
                                 <span className="text-xs text-slate-400 font-extrabold uppercase tracking-wider block">Total Revenue</span>
-                                <span className="text-2xl font-black text-white">${salesData.stats.totalEarnings.toFixed(2)}</span>
+                                <span className="text-2xl font-black text-white">Rs. {salesData.stats.totalEarnings.toFixed(2)}</span>
                             </div>
                         </div>
 
@@ -495,7 +496,7 @@ const Dashboard = () => {
                                                 <td className="p-4 text-xs font-black uppercase">
                                                     <span className="bg-slate-950 border border-slate-700 px-2 py-0.5 rounded-sm text-yellow-400">{c.condition}</span>
                                                 </td>
-                                                <td className="p-4 font-black text-yellow-400">${c.price.toFixed(2)}</td>
+                                                <td className="p-4 font-black text-yellow-400">Rs. {c.price.toFixed(2)}</td>
                                                 <td className="p-4">
                                                     {c.stock === 0 ? (
                                                         <span className="text-xs text-red-500 font-extrabold uppercase bg-red-950/20 px-1.5 py-0.5 rounded-sm border border-red-500/20">Sold Out</span>
@@ -549,7 +550,7 @@ const Dashboard = () => {
                                                 <span className="text-xs text-slate-400 font-bold">&bull; {order.paymentMethod || "COD"}</span>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <span className="text-lg font-black text-yellow-400">${order.subtotal.toFixed(2)}</span>
+                                                <span className="text-lg font-black text-yellow-400">Rs. {order.subtotal.toFixed(2)}</span>
                                                 {expandedOrders[order.orderId]
                                                     ? <ChevronUp className="w-5 h-5 text-slate-400" />
                                                     : <ChevronDown className="w-5 h-5 text-slate-400" />
@@ -576,7 +577,7 @@ const Dashboard = () => {
                                                                 </div>
                                                                 <div>
                                                                     <p className="font-extrabold text-white">{item.comic ? item.comic.title : "Deleted Comic"}</p>
-                                                                    <p className="text-xs text-slate-400">Qty: {item.quantity} &bull; Price: ${item.price.toFixed(2)} each</p>
+                                                                    <p className="text-xs text-slate-400">Qty: {item.quantity} &bull; Price: Rs. {item.price.toFixed(2)} each</p>
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -667,7 +668,7 @@ const Dashboard = () => {
                                             <span className="text-xs text-slate-400 font-bold">&bull; {order.paymentMethod}</span>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <span className="text-lg font-black text-yellow-400">${order.totalAmount.toFixed(2)}</span>
+                                            <span className="text-lg font-black text-yellow-400">Rs. {order.totalAmount.toFixed(2)}</span>
                                             {expandedOrders[order._id]
                                                 ? <ChevronUp className="w-5 h-5 text-slate-400" />
                                                 : <ChevronDown className="w-5 h-5 text-slate-400" />
@@ -699,7 +700,7 @@ const Dashboard = () => {
                                                             </div>
                                                             <div>
                                                                 <p className="font-extrabold text-white">{item.comic ? item.comic.title : "Unavailable Comic"}</p>
-                                                                <p className="text-xs text-slate-400">Qty: {item.quantity} &bull; Price: ${item.price.toFixed(2)} each</p>
+                                                                <p className="text-xs text-slate-400">Qty: {item.quantity} &bull; Price: Rs. {item.price.toFixed(2)} each</p>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -734,7 +735,7 @@ const Dashboard = () => {
 
                                                 <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
                                                     <span className="font-black uppercase text-slate-400">Total Charged:</span>
-                                                    <span className="text-xl font-black text-yellow-400">${order.totalAmount.toFixed(2)}</span>
+                                                    <span className="text-xl font-black text-yellow-400">Rs. {order.totalAmount.toFixed(2)}</span>
                                                 </div>
                                             </div>
                                         </div>

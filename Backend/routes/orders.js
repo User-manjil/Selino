@@ -9,19 +9,16 @@ const { authMiddleware, isBuyer, isSeller } = require("../middleware/auth");
 router.post("/", authMiddleware, isBuyer, async (req, res) => {
     try {
         const { items, shippingAddress, paymentMethod } = req.body;
-        const supportedPaymentMethods = ["COD", "Khalti", "eSewa"];
+        const supportedPaymentMethods = ["COD", "eSewa"];
 
         if (!items || items.length === 0) {
             return res.status(400).json({ message: "No items in the order" });
         }
         if (!supportedPaymentMethods.includes(paymentMethod)) {
-            return res.status(400).json({ message: "Please select COD, Khalti, or eSewa" });
+            return res.status(400).json({ message: "Please select COD or eSewa" });
         }
         if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.state || !shippingAddress.zip || !shippingAddress.country) {
             return res.status(400).json({ message: "Please provide a complete shipping address" });
-        }
-        if (paymentMethod === "Khalti" && !process.env.KHALTI_SECRET_KEY) {
-            return res.status(503).json({ message: "Khalti is not configured. Add KHALTI_SECRET_KEY to the backend environment." });
         }
         if (paymentMethod === "eSewa" && !process.env.ESEWA_SECRET_KEY) {
             return res.status(503).json({ message: "eSewa is not configured. Add ESEWA_SECRET_KEY to the backend environment." });
@@ -82,33 +79,7 @@ router.post("/", authMiddleware, isBuyer, async (req, res) => {
         }
 
         const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-        const callbackUrl = `${frontendUrl}/dashboard?payment=${paymentMethod.toLowerCase()}&order=${newOrder._id}`;
-
-        if (paymentMethod === "Khalti") {
-            const khaltiResponse = await fetch("https://a.khalti.com/api/v2/epayment/initiate/", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Key ${process.env.KHALTI_SECRET_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    return_url: callbackUrl,
-                    website_url: frontendUrl,
-                    amount: Math.round(calculatedTotal * 100),
-                    purchase_order_id: newOrder._id.toString(),
-                    purchase_order_name: `Selino order ${newOrder._id}`
-                })
-            });
-            const khaltiData = await khaltiResponse.json();
-            if (!khaltiResponse.ok || !khaltiData.payment_url) {
-                return res.status(502).json({ message: khaltiData.detail || "Unable to start Khalti payment" });
-            }
-
-            return res.status(201).json({
-                order: populatedOrder,
-                payment: { gateway: "Khalti", redirectUrl: khaltiData.payment_url }
-            });
-        }
+        const callbackUrl = `${frontendUrl}/?payment=${paymentMethod.toLowerCase()}&order=${newOrder._id}&status=success`;
 
         const transactionUuid = `${newOrder._id}-${Date.now()}`;
         const productCode = process.env.ESEWA_PRODUCT_CODE || "EPAYTEST";
@@ -271,9 +242,18 @@ router.put("/:id/status", authMiddleware, isSeller, async (req, res) => {
         const sellerComicIds = sellerComics.map(c => c._id.toString());
 
         const populatedOrder = await Order.findById(req.params.id).populate("items.comic", "seller");
-        const hasSellerItems = populatedOrder.items.some(item =>
-            item.comic && item.comic.seller && sellerComicIds.includes(item.comic.seller.toString())
-        );
+        const hasSellerItems = populatedOrder.items.some(item => {
+            if (!item.comic) return false;
+            // 1. Check if populated seller matches current logged in seller user ID
+            const sellerUserId = item.comic.seller ? (item.comic.seller._id || item.comic.seller).toString() : null;
+            if (sellerUserId && sellerUserId === req.user._id.toString()) return true;
+
+            // 2. Check if comic ID is among this seller's comic IDs
+            const comicId = (item.comic._id || item.comic).toString();
+            if (sellerComicIds.includes(comicId)) return true;
+
+            return false;
+        });
 
         if (!hasSellerItems) {
             return res.status(403).json({ message: "You can only update orders containing your comics" });

@@ -1,13 +1,25 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import ComicCard from "../components/ComicCard";
 import { useAuth } from "../context/authContext";
-import { Search, SlidersHorizontal, BookOpen, AlertCircle } from "lucide-react";
+import { Search, SlidersHorizontal, BookOpen, AlertCircle, CheckCircle2, X } from "lucide-react";
 
 const Marketplace = () => {
     const { token, API_URL } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [comics, setComics] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const payment = searchParams.get("payment");
+    const orderId = searchParams.get("order");
+    const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+
+    useEffect(() => {
+        if (payment && payment === "esewa") {
+            setShowSuccessBanner(true);
+        }
+    }, [payment]);
 
     // Filters and search states
     const [search, setSearch] = useState("");
@@ -91,6 +103,43 @@ const Marketplace = () => {
 
     return (
         <div className="flex-grow halftone-bg py-8 px-4 md:px-12">
+            {/* Payment Success Notification Banner */}
+            {showSuccessBanner && (
+                <div className="bg-emerald-500 border-4 border-black p-4 mb-6 rounded-sm shadow-[6px_6px_0px_#000] text-black flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in duration-300">
+                    <div className="flex items-center gap-3 text-left">
+                        <div className="bg-black text-emerald-400 p-2 rounded-sm border-2 border-black shrink-0">
+                            <CheckCircle2 className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="comic-title text-xl font-black leading-tight">
+                                PAYMENT SUCCESSFUL!
+                            </h3>
+                            <p className="text-xs font-black uppercase tracking-wider text-emerald-950">
+                                Your eSewa payment was received{orderId ? ` for Order #${orderId.slice(-8)}` : ""}! Your comic order is confirmed.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                            to="/dashboard"
+                            className="bg-black hover:bg-slate-900 text-yellow-400 font-black text-xs uppercase px-4 py-2 border-2 border-black rounded-sm shadow-[2px_2px_0px_rgba(0,0,0,0.5)] transition-transform hover:-translate-y-0.5"
+                        >
+                            View in Dashboard
+                        </Link>
+                        <button
+                            onClick={() => {
+                                setShowSuccessBanner(false);
+                                setSearchParams({});
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-black p-2 border-2 border-black rounded-sm cursor-pointer transition-colors"
+                            title="Dismiss"
+                        >
+                            <X className="w-4 h-4 stroke-[3]" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Hero / Promo banner */}
             <div className="bg-[#f59e0b] text-black border-4 border-black p-6 md:p-10 mb-8 rounded-sm relative overflow-hidden shadow-[6px_6px_0px_#000000]">
                 {/* Decorative dots/shapes for comic look */}

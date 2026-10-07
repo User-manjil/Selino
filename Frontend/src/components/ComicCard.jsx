@@ -83,7 +83,7 @@ const ComicCard = ({ comic, onDelete }) => {
                 <div className="mt-4 pt-4 border-t border-slate-700/50">
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-2xl font-black text-yellow-400 tracking-wider">
-                            ${comic.price.toFixed(2)}
+                            Rs. {comic.price.toFixed(2)}
                         </span>
                         
                         {/* Stock status */}

@@ -357,12 +357,12 @@ const SellComic = () => {
                             {/* Price */}
                             <div>
                                 <label className="block text-xs font-black uppercase text-slate-300 tracking-wider mb-1">
-                                    Listing Price ($ USD) *
+                                    Listing Price (Rs. NPR) *
                                 </label>
                                 <input
                                     type="number"
                                     step="0.01"
-                                    placeholder="29.99"
+                                    placeholder="499.00"
                                     value={price}
                                     onChange={(e) => setPrice(e.target.value)}
                                     className="w-full bg-slate-950 border-2 border-black p-2.5 text-white font-bold text-sm focus:outline-none focus:border-yellow-400 placeholder-slate-600 rounded-sm"
