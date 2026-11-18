@@ -7,7 +7,7 @@ export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(localStorage.getItem("token") || null);
     const [loading, setLoading] = useState(true);
 
-    const API_URL = "http://localhost:4000/api";
+    const API_URL = "/api";
 
     useEffect(() => {
         const verifyAuth = async () => {
