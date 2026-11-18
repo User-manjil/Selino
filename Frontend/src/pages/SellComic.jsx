@@ -78,7 +78,7 @@ const SellComic = () => {
                 // Determine image source type
                 if (data.imageUrl && data.imageUrl.startsWith("/uploads/")) {
                     setImageSource("upload");
-                    setImagePreview(`http://localhost:4000${data.imageUrl}`);
+                    setImagePreview(data.imageUrl);
                     setImageUrl("");
                 } else {
                     const isPreset = presetCovers.some(p => p.url === data.imageUrl);

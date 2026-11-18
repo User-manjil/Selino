@@ -266,7 +266,7 @@ const Dashboard = () => {
 
     const getComicImageUrl = (imageUrl) => {
         if (!imageUrl) return "https://images.unsplash.com/photo-1588497859490-85d1c17db26d?q=80&w=600&auto=format&fit=crop";
-        if (imageUrl.startsWith("/uploads/")) return `http://localhost:4000${imageUrl}`;
+        if (imageUrl.startsWith("/uploads/")) return imageUrl;
         return imageUrl;
     };
 

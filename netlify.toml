@@ -1,0 +1,46 @@
+[build]
+  command = "npm run build"
+  publish = "Frontend/dist"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+# Single-page app routes (API and /uploads are handled by the Netlify Server)
+[[redirects]]
+  from = "/comics/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/edit/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/login"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/register"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/sell"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/cart"
+  to = "/index.html"
+  status = 200
+
+[dev]
+  command = "npm --prefix Frontend run dev"
+  targetPort = 5173
